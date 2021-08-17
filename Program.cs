@@ -1,13 +1,18 @@
-﻿using System.Collections.Generic;
+﻿using System.Data;
+using System.Runtime.CompilerServices;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Diagnostics;
 using System.IO;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
 class Program {
+    static bool running = false;
+    static UserEventLogic userEvent;
     const int MIN_HEIGHT = 8;
     const int MIN_WIDTH = 64;
     static Config config;
@@ -65,6 +70,7 @@ class Program {
         Console.WriteLine($"[1] Start Pong | High Score: {config.Score} |");
         Console.WriteLine("[2] Options");
         Console.WriteLine("[3] Quit");
+
         ConsoleKey userInput = SelectOption(ConsoleKey.D1, ConsoleKey.D2, ConsoleKey.D3);
         switch(userInput) {
             case ConsoleKey.D1:
@@ -100,23 +106,74 @@ class Program {
     static void RunGame() {
         // SET UP GAME WITH CONFIG
         Console.Clear();
+
+        /*Console.SetCursorPosition(0,0);
+        Console.WriteLine(new String('-', config.Width));
+        Console.SetCursorPosition(0,config.Height);
+        Console.WriteLine(new String('-', config.Width));*/
+        running = true;
         player = new();
         enemy = new();
+
+        Stopwatch timer = new();
+        timer.Start();
         player.Draw();
-        while(true) {
-            ConsoleKey userInput = SelectOption(ConsoleKey.UpArrow, ConsoleKey.DownArrow);
-            int direction = -1;
-            if(userInput == ConsoleKey.UpArrow && player.Y != 1)
-                direction = 0;
-            if(userInput == ConsoleKey.DownArrow && player.Y != config.Height - 1) 
-                direction = 1;
+
+        Ball ball = new() {X = config.Width - 5, Y = config.Height - 5, LastX = 0, LastY = 0, Speed = 10, Direction = 7.0 * Math.PI / 4.0};
+
+        double deltaTime = 0;
+        double lastTotalMilliseconds = timer.ElapsedMilliseconds / 1000.0;
+        Task.Run(()=>{
+            userEvent = new();
+            userEvent.UserInputCompleted += UserInputHandler;
+            userEvent.StartUserInput();
+        });
+        //userEvent = new();
+        //userEvent.UserInputCompleted += UserInputHandler;
+        //userEvent.StartUserInput();
+        while(running) {
+            deltaTime = timer.ElapsedMilliseconds / 1000.0 - lastTotalMilliseconds;
             
-            player.Update(direction);
-            //await Task.Delay(8);
+            player.Update();
+            /// enemy
+
+
+            /// ball
+            
+            var tempX = (int)Math.Round(ball.X + ball.Speed * Math.Cos(ball.Direction) * deltaTime);
+            var tempY = (int)Math.Round(ball.Y + ball.Speed * Math.Sin(ball.Direction) * deltaTime);
+            if((tempX < 0 || tempX > config.Width - 2) || (tempX == player.X && (tempY == player.Y - 1 || tempY == player.Y || tempY == player.Y + 1))) {
+                ball.Direction = ball.Direction <= Math.PI ? .5 * Math.PI + (.5 * Math.PI - ball.Direction) : 1.5 * Math.PI + (1.5 * Math.PI - ball.Direction);
+                tempX = ball.LastX;
+            }
+            if((tempY < 0 || tempY > config.Height) || (tempX == player.X && (tempY == player.Y - 1 || tempY == player.Y + 1))) {
+                ball.Direction = ball.Direction <= Math.PI * 1.5 && ball.Direction >= Math.PI * .5 ? Math.PI + (Math.PI - ball.Direction) : -ball.Direction;
+                tempY = ball.LastY;
+            }
+            if(tempX != ball.LastX || tempY != ball.LastY) {
+                Console.SetCursorPosition(ball.LastX, ball.LastY);
+                Console.Write(" ");
+            }
+            ball.LastX = tempX;
+            ball.X += ball.Speed * Math.Cos(ball.Direction) * deltaTime;
+            ball.LastY = tempY;
+            ball.Y += ball.Speed * Math.Sin(ball.Direction) * deltaTime;
+            Console.SetCursorPosition(ball.LastX, ball.LastY);
+            Console.Write("x");
+            /// game end
+
+            lastTotalMilliseconds += deltaTime;
         } 
     }
-
-    static ConsoleKey SelectOption(params ConsoleKey[] acceptableKeys) {
+    public static void UserInputHandler(object sender, ConsoleKey key) {
+        if(key == ConsoleKey.UpArrow && player.Y != 1)
+            player.Direction = 0;
+        if(key == ConsoleKey.DownArrow && player.Y != config.Height - 1) 
+            player.Direction = 1;
+        if(key == ConsoleKey.R)  {running = false; return;}
+        userEvent.StartUserInput();
+    }
+    public static ConsoleKey SelectOption(params ConsoleKey[] acceptableKeys) {
 
         ConsoleKeyInfo userInput;
         do {
@@ -155,24 +212,23 @@ class Program {
     static void SaveConfig() {
         File.WriteAllText(dataFolder, JsonSerializer.Serialize(config));
     }
-    enum GameState {
-        ERROR = -1,
-        NOT_RUNNING,
-        RUNNING
-    }
 
     class Config {
 
         public int Width {get; set;}  = 64;
         public int Height {get; set;} = 8;
+        public bool CurveBall {get; set;} = false;
         public int FPS {get; set;} = 60;
         public int Score {get; set;} = 0;
     }
 
     class Pong {
         public int LastDirection {get; set;} = -1;
+        public int Speed {get;set;} = 0;
         public int X {get; set;} = 2;
         public int Y {get; set;} = 5;
+
+        public int Direction {get;set;} = -1;
 
         public void Draw() {
             Console.SetCursorPosition(X, Y - 1);
@@ -182,22 +238,43 @@ class Program {
             Console.SetCursorPosition(X, Y + 1);
             Console.Write("#");
         }
-        public void Update(int direction) {
-            if(direction == 0) {
+        public void Update() {
+            if(Direction == 0) {
                 Y--;
                 Console.SetCursorPosition(X, Y + 2);
                 Console.Write(" ");
                 Console.SetCursorPosition(X, Y - 1);
                 Console.Write("#");
-            } else if(direction == 1) {
+            } else if(Direction == 1) {
                 Y++;
                 Console.SetCursorPosition(X, Y - 2);
                 Console.Write(" ");
                 Console.SetCursorPosition(X, Y + 1);
                 Console.Write("#");
             }
+            LastDirection = Direction;
+            Direction = -1;
         }
     }
+    class Ball {
+        public double X {get;set;}
+        public double Y {get;set;} 
+        public int LastX {get;set;} 
+        public int LastY {get;set;} 
+        public double Speed {get;set;}
+        public double Direction {get;set;} 
+    }
+
+    
 }
+public class UserEventLogic {
+    public event EventHandler<ConsoleKey> UserInputCompleted;
+    public void StartUserInput() {
+        var key = Program.SelectOption(ConsoleKey.DownArrow, ConsoleKey.UpArrow, ConsoleKey.R);
+        OnUserInputCompleted(key);
+    }
 
-
+    protected virtual void OnUserInputCompleted(ConsoleKey key) {
+        UserInputCompleted?.Invoke(this, key);
+    }           
+}
