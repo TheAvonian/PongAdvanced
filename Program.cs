@@ -87,8 +87,8 @@ class Program {
 
     static void ShowOptions() {
         Console.Clear();
-        Console.WriteLine($"[1] Resolution: {config.Height}x{config.Width}");
-        Console.WriteLine($"CWIDTH: {Console.WindowWidth} CHEIGHT: {Console.WindowHeight}");
+        Console.WriteLine($"[1] Resolution: {config.Width}x{config.Height}");
+        Console.WriteLine($"[2] Reset Resolution ({Console.WindowWidth - 1}x{Console.WindowHeight - 1})");
         
         Console.WriteLine("[3] Back");
         ConsoleKey userInput = SelectOption(ConsoleKey.D1, ConsoleKey.D2, ConsoleKey.D3);
@@ -97,6 +97,8 @@ class Program {
                 ShowResolution();
                 break;
             case ConsoleKey.D2:
+                config.Width = Console.WindowWidth - 1;
+                config.Height = Console.WindowHeight - 1; 
                 break;
             case ConsoleKey.D3:
                 return;
@@ -192,16 +194,20 @@ class Program {
             userInput = SelectOption(ConsoleKey.Z, ConsoleKey.RightArrow, ConsoleKey.LeftArrow, ConsoleKey.UpArrow, ConsoleKey.DownArrow);
             switch(userInput) {
                 case ConsoleKey.RightArrow:
-                    config.Width++;
+                    if(config.Width != Console.WindowWidth - 1)
+                        config.Width++;
                     break;
                 case ConsoleKey.LeftArrow:
-                    config.Width--;
+                    if(config.Width != 0)
+                        config.Width--;
                     break;
                 case ConsoleKey.UpArrow:
-                    config.Height--;
+                    if(config.Height != 0)
+                        config.Height--;
                     break;
                 case ConsoleKey.DownArrow:
-                    config.Height++;
+                    if(config.Height != Console.WindowHeight - 1)
+                        config.Height++;
                     break;
                 case ConsoleKey.Z:
                     SaveConfig();
